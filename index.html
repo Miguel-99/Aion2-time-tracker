@@ -221,6 +221,14 @@ input:focus-visible, button:focus-visible {
 }
 
 /* ---------- 15 min alarm ---------- */
+.alarm-toggle-btn {
+  flex: 0 0 auto; background: var(--panel-3); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 6px 10px;
+  font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; min-width: 56px;
+}
+.alarm-toggle-btn[aria-pressed="false"] { background: transparent; border-style: dashed; color: var(--muted-2); }
+.alarm-toggle-btn:hover { border-color: var(--accent); }
+input.num-input.is-disabled { opacity: 0.45; }
 .alarm-banner {
   position: fixed; z-index: 50; left: 50%; bottom: 16px; transform: translateX(-50%);
   display: flex; align-items: center; gap: 12px;
@@ -303,7 +311,7 @@ footer p { margin: 0; max-width: 70ch; }
         <input id="import-file" type="file" accept=".json,application/json" hidden>
       </div>
       <div class="panel">
-        <span class="config-label">15 min alarm</span>
+        <span class="config-label">All alarms</span>
         <div class="data-actions">
           <button class="ghost-btn data-btn" id="alarm-toggle" type="button" aria-pressed="true">On</button>
           <button class="ghost-btn data-btn" id="alarm-test" type="button">Test</button>
@@ -332,7 +340,7 @@ footer p { margin: 0; max-width: 70ch; }
   </main>
 
   <footer>
-    <p>All times use your device's local clock. An alarm rings 15 minutes before every respawn and before each Shugo Festival while this page stays open. The schedule refreshes automatically every 30 seconds, and your inputs are saved locally in this browser.</p>
+    <p>All times use your device's local clock. Each boss card has its own alarm (on/off and how many minutes before the respawn), and the Shugo Festival alerts 15 minutes ahead. Alarms only ring while this page stays open. The schedule refreshes automatically every 30 seconds, and your inputs are saved locally in this browser.</p>
     <p class="muted">Last update &middot; <span id="last-update">--:--:--</span></p>
   </footer>
 </div>
@@ -396,6 +404,7 @@ footer p { margin: 0; max-width: 70ch; }
       mode: 'death',
       ref: '',
       interval: { hours: defaultInterval.hours, minutes: defaultInterval.minutes },
+      alarm: { enabled: true, minutes: 15 },
       detailsOpen: false
     };
   }
@@ -419,6 +428,14 @@ footer p { margin: 0; max-width: 70ch; }
     };
   }
 
+  function normalizeAlarm(value) {
+    var src = value && typeof value === 'object' ? value : {};
+    return {
+      enabled: src.enabled !== false,
+      minutes: clampInt(src.minutes, 15, 1, 180)
+    };
+  }
+
   function normalizeBoss(saved, defaultInterval) {
     return {
       id: uid(),
@@ -428,6 +445,7 @@ footer p { margin: 0; max-width: 70ch; }
       mode: saved.mode === 'respawn' ? 'respawn' : 'death',
       ref: typeof saved.ref === 'string' ? saved.ref : '',
       interval: normalizeInterval(saved.interval, defaultInterval),
+      alarm: normalizeAlarm(saved.alarm),
       detailsOpen: saved.detailsOpen === true
     };
   }
@@ -540,6 +558,10 @@ footer p { margin: 0; max-width: 70ch; }
               interval: {
                 hours: boss.interval.hours,
                 minutes: boss.interval.minutes
+              },
+              alarm: {
+                enabled: boss.alarm.enabled,
+                minutes: boss.alarm.minutes
               },
               detailsOpen: boss.detailsOpen
             };
@@ -770,25 +792,34 @@ footer p { margin: 0; max-width: 70ch; }
     return Boolean(window.AudioContext || window.webkitAudioContext);
   }
 
-  // Three-note chime, played twice. Generated with Web Audio so the page
-  // stays a single self-contained file.
-  function chime(ctx) {
+  // Three bursts of a two-tone alternating siren. Louder and brighter than a
+  // plain chime, so it cuts through game audio, and generated with Web Audio
+  // so the page stays a single self-contained file.
+  function alarmSignal(ctx) {
     var base = ctx.currentTime;
-    var notes = [880, 1108.73, 1318.51];
-    for (var pass = 0; pass < 2; pass++) {
-      for (var i = 0; i < notes.length; i++) {
-        var at = base + pass * 1.1 + i * 0.26;
+    var master = ctx.createGain();
+    master.gain.setValueAtTime(0.9, base);
+    master.connect(ctx.destination);
+
+    var tones = [1046.5, 784];
+    for (var burst = 0; burst < 3; burst++) {
+      for (var i = 0; i < 4; i++) {
+        var at = base + burst * 1.0 + i * 0.22;
         var osc = ctx.createOscillator();
+        var filter = ctx.createBiquadFilter();
         var gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(notes[i], at);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(tones[i % 2], at);
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(3000, at);
         gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(0.22, at + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.42);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.gain.exponentialRampToValueAtTime(0.5, at + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.17);
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(master);
         osc.start(at);
-        osc.stop(at + 0.45);
+        osc.stop(at + 0.19);
       }
     }
   }
@@ -802,7 +833,7 @@ footer p { margin: 0; max-width: 70ch; }
     function afterUnlock() {
       if (!pendingSound || ctx.state !== 'running') return;
       pendingSound = false;
-      chime(ctx);
+      alarmSignal(ctx);
     }
     if (ctx.state === 'running') {
       afterUnlock();
@@ -819,7 +850,7 @@ footer p { margin: 0; max-width: 70ch; }
     if (!ctx) return false;
     if (ctx.state === 'running') {
       pendingSound = false;
-      chime(ctx);
+      alarmSignal(ctx);
       return true;
     }
     pendingSound = true;
@@ -828,7 +859,7 @@ footer p { margin: 0; max-width: 70ch; }
       resumed.then(function () {
         if (!pendingSound || ctx.state !== 'running') return;
         pendingSound = false;
-        chime(ctx);
+        alarmSignal(ctx);
       }).catch(function () {});
     }
     return false;
@@ -845,16 +876,19 @@ footer p { margin: 0; max-width: 70ch; }
 
     state.worlds.forEach(function (world) {
       world.bosses.forEach(function (boss) {
+        var alarm = boss.alarm || { enabled: true, minutes: 15 };
+        if (!alarm.enabled) return;
         var iv = intervalMsOf(boss.interval);
         if (iv < MIN_INTERVAL_MS) return;
         var refMs = parseLocalDateTime(boss.ref);
         if (refMs === null) return;
         var times = upcoming(refMs, iv, nowMs, boss.mode);
         var label = (boss.name || 'Boss') + (world.name ? ' \u00B7 ' + world.name : '');
+        var leadMs = alarm.minutes * 60000;
         for (var j = 0; j < times.length; j++) {
           var key = alarmKeyForBoss(world, boss, times[j]);
           if (alarmFired[key]) continue;
-          candidates.push({ key: key, label: label, at: times[j] });
+          candidates.push({ key: key, label: label, at: times[j], leadMs: leadMs });
           break;
         }
       });
@@ -862,7 +896,7 @@ footer p { margin: 0; max-width: 70ch; }
 
     var shugo = nextShugoStart(nowMs);
     if (alarmFired['shugo|' + shugo]) shugo += HOUR_MS;
-    candidates.push({ key: 'shugo|' + shugo, label: 'Shugo Festival', at: shugo });
+    candidates.push({ key: 'shugo|' + shugo, label: 'Shugo Festival', at: shugo, leadMs: ALARM_LEAD_MS });
 
     return candidates;
   }
@@ -874,7 +908,7 @@ footer p { margin: 0; max-width: 70ch; }
     if (alarmEnabled) {
       collectAlarmCandidates(nowMs).forEach(function (cand) {
         var msLeft = cand.at - nowMs;
-        if (msLeft <= 0 || msLeft > ALARM_LEAD_MS) return;
+        if (msLeft <= 0 || msLeft > cand.leadMs) return;
         if (alarmFired[cand.key]) return;
         alarmFired[cand.key] = true;
         due.push(cand);
@@ -883,13 +917,13 @@ footer p { margin: 0; max-width: 70ch; }
 
     if (due.length) {
       saveAlarmFired();
-      fireAlarm(due);
+      fireAlarm(due, nowMs);
     }
 
     scheduleAlarmCheck(nowMs);
   }
 
-  // Wakes up exactly when the next 15-minute boundary is crossed, with a
+  // Wakes up exactly when the next per-timer boundary is crossed, with a
   // 10 minute cap that also covers clock changes and background throttling.
   function scheduleAlarmCheck(nowMs) {
     if (alarmTimer) {
@@ -900,7 +934,7 @@ footer p { margin: 0; max-width: 70ch; }
 
     var nextBoundary = null;
     collectAlarmCandidates(nowMs).forEach(function (cand) {
-      var boundary = cand.at - ALARM_LEAD_MS;
+      var boundary = cand.at - cand.leadMs;
       if (boundary <= nowMs) return;
       if (nextBoundary === null || boundary < nextBoundary) nextBoundary = boundary;
     });
@@ -910,12 +944,13 @@ footer p { margin: 0; max-width: 70ch; }
     alarmTimer = setTimeout(checkAlarms, Math.max(delay, 1000));
   }
 
-  function fireAlarm(due) {
+  function fireAlarm(due, nowMs) {
     var items = due.map(function (cand) {
-      return cand.label + ' at ' + fmtTime(cand.at);
+      var minutes = Math.max(1, Math.round((cand.at - nowMs) / 60000));
+      return minutes + ' min to ' + cand.label + ' at ' + fmtTime(cand.at);
     });
     var audible = playAlarm();
-    var message = '15 min to ' + items.join(', ');
+    var message = items.join(', ');
     if (!audible && soundSupported()) message += ' \u2014 click anywhere to enable sound.';
     showAlarmBanner(message);
   }
@@ -1063,6 +1098,7 @@ footer p { margin: 0; max-width: 70ch; }
   }
 
   function buildCard(world, boss, accentIndex) {
+    if (!boss.alarm) boss.alarm = { enabled: true, minutes: 15 };
     var card = el('article', 'boss-card');
     card.style.setProperty('--accent', ACCENTS[accentIndex % ACCENTS.length]);
     card.setAttribute('role', 'group');
@@ -1170,6 +1206,48 @@ footer p { margin: 0; max-width: 70ch; }
     ivRow.appendChild(el('span', 'meta-label', 'Respawn interval'));
     ivRow.appendChild(ivWrap);
 
+    var alarmBtn = el('button', 'alarm-toggle-btn');
+    alarmBtn.type = 'button';
+    alarmBtn.setAttribute('aria-label', 'Alarm for this boss');
+    var alarmMin = el('input', 'num-input');
+    alarmMin.type = 'number';
+    alarmMin.min = '1';
+    alarmMin.max = '180';
+    alarmMin.step = '1';
+    alarmMin.inputMode = 'numeric';
+    alarmMin.value = boss.alarm.minutes;
+    alarmMin.setAttribute('aria-label', 'Minutes before the respawn');
+
+    function applyAlarmRow() {
+      alarmBtn.textContent = boss.alarm.enabled ? 'On' : 'Off';
+      alarmBtn.setAttribute('aria-pressed', String(boss.alarm.enabled));
+      alarmMin.disabled = !boss.alarm.enabled;
+      alarmMin.classList.toggle('is-disabled', !boss.alarm.enabled);
+    }
+
+    alarmBtn.addEventListener('click', function () {
+      boss.alarm.enabled = !boss.alarm.enabled;
+      saveState();
+      applyAlarmRow();
+      render();
+    });
+
+    function onAlarmMinutesChange() {
+      boss.alarm.minutes = clampInt(alarmMin.value, boss.alarm.minutes, 1, 180);
+      saveState();
+      render();
+    }
+    alarmMin.addEventListener('input', onAlarmMinutesChange);
+
+    var alarmWrap = el('div', 'interval-inputs');
+    alarmWrap.appendChild(alarmBtn);
+    alarmWrap.appendChild(alarmMin);
+    alarmWrap.appendChild(el('span', 'interval-unit', 'min before'));
+    var alarmRow = el('div', 'interval-row');
+    alarmRow.appendChild(el('span', 'meta-label', 'Alarm'));
+    alarmRow.appendChild(alarmWrap);
+    applyAlarmRow();
+
     var btnDeath = el('button', 'mode-btn', 'Last death');
     btnDeath.type = 'button';
     var btnRespawn = el('button', 'mode-btn', 'Next respawn');
@@ -1206,6 +1284,7 @@ footer p { margin: 0; max-width: 70ch; }
     var derived = el('div', 'derived');
 
     detailsBody.appendChild(ivRow);
+    detailsBody.appendChild(alarmRow);
     detailsBody.appendChild(refSection);
     detailsBody.appendChild(derived);
     details.appendChild(detailsBody);
