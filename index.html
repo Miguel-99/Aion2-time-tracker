@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0a0f1e">
+<title>Aion 2 Respawn Timer</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0f1e;
+  --panel: #121a2e;
+  --panel-2: #0e1526;
+  --panel-3: #1a2438;
+  --border: #263252;
+  --border-soft: #1d2740;
+  --text: #e9edf9;
+  --muted: #8d97b8;
+  --muted-2: #6b7699;
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --red: #fb7185;
+  --gold: #e7c56a;
+  --accent: #5ea0ff;
+  --radius: 14px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background-color: var(--bg);
+  background-image: radial-gradient(900px 420px at 50% -120px, rgba(78, 110, 187, 0.25), transparent 70%);
+  background-repeat: no-repeat;
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.45;
+  min-height: 100vh;
+}
+.app { max-width: 1180px; margin: 0 auto; padding: 22px 18px 40px; }
+
+/* ---------- top bar ---------- */
+.topbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+h1 { margin: 0; font-size: 1.45rem; letter-spacing: 0.4px; }
+h1 .accent { color: var(--gold); }
+.subtitle { margin: 4px 0 0; color: var(--muted); font-size: 0.85rem; max-width: 48ch; }
+.topbar-side { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; }
+.clock-label, .config-label { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted-2); margin-bottom: 2px; }
+.clock-value { font-size: 1.3rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.interval-inputs { display: flex; align-items: center; gap: 6px; }
+.interval-unit { color: var(--muted); font-size: 0.85rem; }
+.interval-effective { margin: 6px 0 0; color: var(--muted); font-size: 0.78rem; }
+.interval-warning { margin: 6px 0 0; color: var(--red); font-size: 0.78rem; }
+.data-actions { display: flex; gap: 6px; }
+.data-btn { padding: 7px 12px; font-size: 0.82rem; }
+.data-btn.is-off { color: var(--muted); border-style: solid; }
+.data-message { margin: 6px 0 0; color: var(--green); font-size: 0.78rem; max-width: 220px; }
+.data-message.is-error { color: var(--red); }
+
+/* ---------- inputs ---------- */
+input[type="text"], input[type="number"], input[type="datetime-local"] {
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 1rem;
+  width: 100%;
+}
+input.num-input {
+  width: 64px;
+  padding: 8px;
+  text-align: center;
+}
+input:focus-visible, button:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(94, 160, 255, 0.18);
+}
+
+/* ---------- worlds ---------- */
+.world { margin-bottom: 22px; }
+.world-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.world-head .world-name { flex: 1 1 220px; max-width: 360px; font-size: 1.15rem; font-weight: 700; letter-spacing: 0.4px; color: var(--gold); }
+.ghost-btn {
+  flex: 0 0 auto; background: transparent; border: 1px dashed var(--border); color: var(--muted);
+  border-radius: 9px; padding: 8px 12px; font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+}
+.ghost-btn:hover { color: var(--text); border-color: var(--accent); }
+.add-world-btn { width: 100%; padding: 11px; margin-bottom: 24px; }
+.icon-btn {
+  flex: 0 0 auto; background: transparent; border: 1px solid transparent; color: var(--muted-2);
+  border-radius: 8px; width: 32px; height: 32px; padding: 0; font-size: 1.05rem; line-height: 1; cursor: pointer;
+}
+.icon-btn:hover { color: var(--red); border-color: var(--border); }
+.world-empty { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 0.85rem; padding: 12px; border: 1px dashed var(--border-soft); border-radius: 9px; }
+
+/* ---------- boss cards ---------- */
+.boss-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 16px; }
+.boss-card {
+  background: linear-gradient(180deg, var(--panel-3), var(--panel));
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.boss-card.state-soon { border-color: #8a6d2b; border-top-color: var(--accent); box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.12); }
+.boss-card.state-imminent { border-color: #7d3145; border-top-color: var(--accent); box-shadow: 0 0 24px rgba(251, 113, 133, 0.16); }
+
+.boss-head { display: flex; flex-direction: column; gap: 8px; }
+.boss-title-row { display: flex; align-items: center; gap: 8px; }
+.boss-title-row .boss-name { flex: 1 1 auto; min-width: 0; }
+.boss-card .boss-name { font-size: 1.08rem; font-weight: 650; letter-spacing: 0.2px; }
+.boss-meta { display: flex; gap: 10px; }
+.meta-field { display: flex; flex-direction: column; gap: 3px; flex: 1 1 auto; min-width: 0; }
+.meta-field.slot { flex: 0 0 84px; }
+.meta-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted-2); }
+
+/* ---------- schedule ---------- */
+.schedule-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.schedule-title { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted-2); }
+.interval-chip {
+  font-size: 0.72rem; color: var(--muted); background: var(--panel-2);
+  border: 1px solid var(--border-soft); border-radius: 999px; padding: 2px 8px; white-space: nowrap;
+}
+.interval-chip.chip-invalid { color: var(--red); border-color: rgba(251, 113, 133, 0.45); }
+.schedule { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.slot-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: 9px; padding: 7px 10px; font-size: 0.88rem;
+}
+.slot-num { flex: 0 0 22px; color: var(--muted-2); font-weight: 700; font-size: 0.75rem; }
+.slot-when { font-variant-numeric: tabular-nums; }
+.slot-in { margin-left: auto; font-weight: 700; font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
+.slot-row.is-next { box-shadow: inset 3px 0 0 var(--accent); background: rgba(255, 255, 255, 0.03); }
+.slot-row.is-next.state-normal .slot-in { color: var(--green); }
+.slot-row.is-next.state-soon { border-color: rgba(251, 191, 36, 0.45); box-shadow: inset 3px 0 0 var(--amber); }
+.slot-row.is-next.state-soon .slot-in { color: var(--amber); }
+.slot-row.is-next.state-imminent { border-color: rgba(251, 113, 133, 0.55); box-shadow: inset 3px 0 0 var(--red); animation: pulse 1.6s ease-in-out infinite; }
+.slot-row.is-next.state-imminent .slot-in { color: var(--red); }
+.slot-empty { color: var(--muted); font-size: 0.84rem; padding: 8px 10px; border: 1px dashed var(--border-soft); border-radius: 9px; }
+
+@keyframes pulse {
+  0%, 100% { box-shadow: inset 3px 0 0 var(--red), 0 0 0 0 rgba(251, 113, 133, 0); }
+  50% { box-shadow: inset 3px 0 0 var(--red), 0 0 0 4px rgba(251, 113, 133, 0.1); }
+}
+
+/* ---------- collapsible details ---------- */
+.details { border-top: 1px solid var(--border-soft); padding-top: 6px; }
+.details > summary {
+  display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
+  color: var(--muted); font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; padding: 3px 0; user-select: none;
+}
+.details > summary::-webkit-details-marker { display: none; }
+.details > summary::before { content: '\25B8'; display: inline-block; font-size: 0.85rem; transition: transform 0.15s ease; }
+.details[open] > summary::before { transform: rotate(90deg); }
+.details > summary:hover { color: var(--text); }
+.details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.details-body { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.interval-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+.ref-section { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border-soft); padding-top: 10px; }
+.mode-toggle { display: flex; gap: 3px; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 10px; padding: 3px; }
+.mode-btn {
+  flex: 1; background: transparent; border: 0; border-radius: 7px; padding: 7px 6px;
+  color: var(--muted); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+}
+.mode-btn:hover { color: var(--text); }
+.mode-btn[aria-pressed="true"] { background: var(--panel-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+.ref-label { display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted-2); margin-bottom: 4px; }
+.ref-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ref-input { flex: 1 1 150px; min-width: 0; }
+.now-btn {
+  background: var(--panel-3); border: 1px solid var(--border); border-radius: 9px;
+  color: var(--text); font: inherit; font-size: 0.85rem; font-weight: 600;
+  padding: 9px 12px; cursor: pointer; white-space: nowrap;
+}
+.now-btn:hover { border-color: var(--accent); }
+
+.derived { display: flex; flex-direction: column; gap: 4px; min-height: 20px; }
+.derived-line { display: flex; gap: 8px; font-size: 0.84rem; }
+.derived-line .k { flex: 0 0 72px; color: var(--muted); }
+.derived-line .v { color: var(--text); min-width: 0; }
+.hint { margin: 0; color: var(--muted); font-size: 0.84rem; }
+
+/* ---------- Shugo Festival ---------- */
+.shugo {
+  border: 1px solid #3b3352; border-radius: var(--radius);
+  padding: 18px;
+  background: linear-gradient(135deg, #1b1630, #121a2e 60%);
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px;
+}
+.shugo-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.shugo h2 { margin: 0; font-size: 1.15rem; letter-spacing: 0.4px; color: var(--gold); }
+.shugo-body { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.shugo-next { display: flex; flex-direction: column; align-items: center; }
+.shugo-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted-2); }
+.shugo-time { font-size: 2rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.shugo-date { color: var(--muted); font-size: 0.82rem; }
+.shugo-countdown {
+  font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 8px 16px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border);
+}
+.shugo-countdown.state-soon { color: var(--amber); border-color: rgba(251, 191, 36, 0.45); }
+.shugo-countdown.state-imminent { color: var(--red); border-color: rgba(251, 113, 133, 0.55); animation: pulse-chip 1.6s ease-in-out infinite; }
+@keyframes pulse-chip {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slot-row.is-next.state-imminent { animation: none; }
+  .shugo-countdown.state-imminent { animation: none; }
+  .alarm-banner.is-live { animation: none; }
+}
+
+/* ---------- 15 min alarm ---------- */
+.alarm-banner {
+  position: fixed; z-index: 50; left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px;
+  max-width: min(760px, calc(100vw - 24px));
+  padding: 12px 14px; border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.65);
+  background: linear-gradient(180deg, #2b2009, #171104);
+  color: var(--amber); font-size: 0.92rem; font-weight: 650;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+.alarm-banner[hidden] { display: none; }
+.alarm-text { flex: 1 1 auto; min-width: 0; }
+.alarm-dismiss {
+  flex: 0 0 auto; background: rgba(251, 191, 36, 0.14); border: 1px solid rgba(251, 191, 36, 0.45);
+  color: var(--amber); font: inherit; font-size: 0.8rem; font-weight: 700;
+  border-radius: 8px; padding: 6px 10px; cursor: pointer;
+}
+.alarm-dismiss:hover { background: rgba(251, 191, 36, 0.26); }
+.alarm-banner.is-live { animation: alarm-glow 1.8s ease-in-out infinite; }
+@keyframes alarm-glow {
+  0%, 100% { box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 0 0 rgba(251, 191, 36, 0); }
+  50% { box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 0 6px rgba(251, 191, 36, 0.12); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 22px; border-top: 1px solid var(--border-soft); padding-top: 14px;
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between;
+  color: var(--muted); font-size: 0.78rem;
+}
+footer p { margin: 0; max-width: 70ch; }
+.muted { color: var(--muted-2); }
+
+/* ---------- mobile ---------- */
+@media (max-width: 720px) {
+  .app { padding: 16px 12px 32px; }
+  h1 { font-size: 1.25rem; }
+  .topbar-side { width: 100%; }
+  .panel { flex: 1 1 auto; }
+  .world-head .world-name { max-width: none; }
+  .shugo-time { font-size: 1.7rem; }
+  .shugo-countdown { font-size: 1.1rem; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="alarm-banner" id="alarm-banner" role="alert" aria-live="assertive" hidden>
+    <span class="alarm-text" id="alarm-text"></span>
+    <button class="alarm-dismiss" id="alarm-dismiss" type="button">Dismiss</button>
+  </div>
+  <header class="topbar">
+    <div class="brand">
+      <h1><span class="accent">Aion 2</span> Respawn Timer</h1>
+      <p class="subtitle">World boss respawns and the Shugo Festival, in your device's local time.</p>
+    </div>
+    <div class="topbar-side">
+      <div class="panel">
+        <span class="clock-label">Local time</span>
+        <span class="clock-value" id="clock-value">--:--</span>
+      </div>
+      <div class="panel">
+        <label class="config-label" for="interval-h">Default interval</label>
+        <div class="interval-inputs">
+          <input id="interval-h" class="num-input" type="number" min="0" step="1" value="5" inputmode="numeric" aria-label="Default interval hours">
+          <span class="interval-unit">h</span>
+          <input id="interval-m" class="num-input" type="number" min="0" step="1" value="0" inputmode="numeric" aria-label="Default interval minutes">
+          <span class="interval-unit">min</span>
+        </div>
+        <p class="interval-effective" id="interval-effective">New bosses: every 5h 00m</p>
+        <p class="interval-warning" id="interval-warning" hidden>Interval must be at least 1 minute.</p>
+      </div>
+      <div class="panel">
+        <span class="config-label">Data</span>
+        <div class="data-actions">
+          <button class="ghost-btn data-btn" id="import-btn" type="button">Import</button>
+          <button class="ghost-btn data-btn" id="export-btn" type="button">Export</button>
+        </div>
+        <p class="data-message" id="data-message" role="status" aria-live="polite" hidden></p>
+        <input id="import-file" type="file" accept=".json,application/json" hidden>
+      </div>
+      <div class="panel">
+        <span class="config-label">15 min alarm</span>
+        <div class="data-actions">
+          <button class="ghost-btn data-btn" id="alarm-toggle" type="button" aria-pressed="true">On</button>
+          <button class="ghost-btn data-btn" id="alarm-test" type="button">Test</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="worlds"></div>
+    <button class="ghost-btn add-world-btn" id="add-world-btn" type="button">+ Add world</button>
+
+    <section class="shugo" aria-labelledby="shugo-title">
+      <div class="shugo-head">
+        <h2 id="shugo-title">Shugo Festival</h2>
+      </div>
+      <div class="shugo-body">
+        <div class="shugo-next">
+          <span class="shugo-label">Next start</span>
+          <span class="shugo-time" id="shugo-time">--:--</span>
+          <span class="shugo-date" id="shugo-date"></span>
+        </div>
+        <div class="shugo-countdown" id="shugo-countdown">&mdash;</div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>All times use your device's local clock. An alarm rings 15 minutes before every respawn and before each Shugo Festival while this page stays open. The schedule refreshes automatically every 30 seconds, and your inputs are saved locally in this browser.</p>
+    <p class="muted">Last update &middot; <span id="last-update">--:--:--</span></p>
+  </footer>
+</div>
+<noscript>
+  <p style="max-width:1180px;margin:0 auto;padding:0 18px 24px;color:#8d97b8;">This tool requires JavaScript to calculate respawn times.</p>
+</noscript>
+<script>
+(function () {
+  'use strict';
+
+  var STORAGE_KEY = 'aion2-time-tracker/v1';
+  var REFRESH_MS = 30000;
+  var SOON_MS = 60 * 60 * 1000;
+  var IMMINENT_MS = 10 * 60 * 1000;
+  var HOUR_MS = 60 * 60 * 1000;
+  var MIN_INTERVAL_MS = 60 * 1000;
+  var ALARM_LEAD_MS = 15 * 60 * 1000;
+  var ALARM_PREF_KEY = 'aion2-time-tracker/alarm-pref/v1';
+  var ALARM_FIRED_KEY = 'aion2-time-tracker/alarm-fired/v1';
+  var ALARM_FIRED_KEEP_MS = 24 * 60 * 60 * 1000;
+  var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var ACCENTS = ['#5ea0ff', '#b78cff', '#e7c56a', '#5fd4a0'];
+
+  var state = loadState();
+  var cardRefs = {};
+  var worldRefs = {};
+  var alarmEnabled = loadAlarmPref();
+  var alarmFired = loadAlarmFired();
+  var alarmTimer = null;
+  var audioCtx = null;
+  var pendingSound = false;
+
+  /* ---------- ids & small helpers ---------- */
+
+  function uid() {
+    return 'x' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function clampInt(value, fallback, min, max) {
+    var n = Math.floor(Number(value));
+    if (!isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+
+  /* ---------- state ---------- */
+
+  function makeBoss(name, defaultInterval) {
+    return {
+      id: uid(),
+      name: name,
+      location: '',
+      slot: '',
+      mode: 'death',
+      ref: '',
+      interval: { hours: defaultInterval.hours, minutes: defaultInterval.minutes },
+      detailsOpen: false
+    };
+  }
+
+  function makeWorld(name) {
+    return { id: uid(), name: name, bosses: [] };
+  }
+
+  function defaultState() {
+    var d = { hours: 5, minutes: 0 };
+    var altgard = makeWorld('Altgard');
+    altgard.bosses.push(makeBoss('Boss 1', d), makeBoss('Boss 2', d), makeBoss('Boss 3', d), makeBoss('Boss 4', d));
+    return { version: 2, interval: { hours: 5, minutes: 0 }, worlds: [altgard, makeWorld('Abyss')] };
+  }
+
+  function normalizeInterval(value, fallback) {
+    var src = value && typeof value === 'object' ? value : {};
+    return {
+      hours: clampInt(src.hours, fallback.hours, 0, 999),
+      minutes: clampInt(src.minutes, fallback.minutes, 0, 999)
+    };
+  }
+
+  function normalizeBoss(saved, defaultInterval) {
+    return {
+      id: uid(),
+      name: typeof saved.name === 'string' ? saved.name : 'Boss',
+      location: typeof saved.location === 'string' ? saved.location : '',
+      slot: typeof saved.slot === 'string' ? saved.slot : '',
+      mode: saved.mode === 'respawn' ? 'respawn' : 'death',
+      ref: typeof saved.ref === 'string' ? saved.ref : '',
+      interval: normalizeInterval(saved.interval, defaultInterval),
+      detailsOpen: saved.detailsOpen === true
+    };
+  }
+
+  // Builds a clean state from saved or imported data. Returns null when the
+  // payload is not an object with either the current "worlds" shape or the
+  // legacy flat "bosses" shape.
+  function normalizeSavedState(saved) {
+    if (!saved || typeof saved !== 'object') return null;
+    var base = defaultState();
+
+    if (Array.isArray(saved.worlds)) {
+      // Current shape: worlds, each with its own bosses and intervals.
+      base.interval = normalizeInterval(saved.interval, base.interval);
+      var worlds = [];
+      saved.worlds.forEach(function (savedWorld) {
+        if (!savedWorld || typeof savedWorld !== 'object') return;
+        var world = makeWorld(typeof savedWorld.name === 'string' ? savedWorld.name : 'World');
+        if (Array.isArray(savedWorld.bosses)) {
+          savedWorld.bosses.forEach(function (savedBoss) {
+            if (savedBoss && typeof savedBoss === 'object') {
+              world.bosses.push(normalizeBoss(savedBoss, base.interval));
+            }
+          });
+        }
+        worlds.push(world);
+      });
+      base.worlds = worlds;
+      return base;
+    }
+
+    if (Array.isArray(saved.bosses)) {
+      // Legacy flat shape (4 bosses, one shared interval): they become the
+      // "Altgard" world, keeping names, references and that interval as
+      // their own. An empty "Abyss" world is added so bosses from other
+      // worlds can be created right away.
+      var legacyInterval = normalizeInterval(saved.interval, base.interval);
+      base.interval = { hours: legacyInterval.hours, minutes: legacyInterval.minutes };
+      var altgard = makeWorld('Altgard');
+      saved.bosses.forEach(function (savedBoss, index) {
+        if (!savedBoss || typeof savedBoss !== 'object') savedBoss = {};
+        var boss = normalizeBoss(savedBoss, legacyInterval);
+        if (typeof savedBoss.name !== 'string') boss.name = 'Boss ' + (index + 1);
+        altgard.bosses.push(boss);
+      });
+      base.worlds = [altgard, makeWorld('Abyss')];
+      return base;
+    }
+
+    return null;
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultState();
+      return normalizeSavedState(JSON.parse(raw)) || defaultState();
+    } catch (err) {
+      /* Storage unavailable or corrupted: run with defaults. */
+      return defaultState();
+    }
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (err) {
+      /* Storage unavailable: the tool keeps working without persistence. */
+    }
+  }
+
+  /* ---------- import / export ---------- */
+
+  var messageTimer = null;
+
+  function showDataMessage(text, isError) {
+    var message = document.getElementById('data-message');
+    if (!message) return;
+    message.textContent = text;
+    message.classList.toggle('is-error', Boolean(isError));
+    message.hidden = false;
+    if (messageTimer) clearTimeout(messageTimer);
+    messageTimer = setTimeout(function () { message.hidden = true; }, 5000);
+  }
+
+  function syncIntervalInputs() {
+    document.getElementById('interval-h').value = state.interval.hours;
+    document.getElementById('interval-m').value = state.interval.minutes;
+  }
+
+  function exportData() {
+    var payload = {
+      app: 'aion2-time-tracker',
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      interval: {
+        hours: state.interval.hours,
+        minutes: state.interval.minutes
+      },
+      worlds: state.worlds.map(function (world) {
+        return {
+          name: world.name,
+          bosses: world.bosses.map(function (boss) {
+            return {
+              name: boss.name,
+              location: boss.location,
+              slot: boss.slot,
+              mode: boss.mode,
+              ref: boss.ref,
+              interval: {
+                hours: boss.interval.hours,
+                minutes: boss.interval.minutes
+              },
+              detailsOpen: boss.detailsOpen
+            };
+          })
+        };
+      })
+    };
+
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    var now = new Date();
+    link.href = url;
+    link.download = 'aion2-time-tracker-' + now.getFullYear() + '-' +
+      pad2(now.getMonth() + 1) + '-' + pad2(now.getDate()) + '.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    showDataMessage('Data exported.', false);
+  }
+
+  function importDataFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var imported;
+      try {
+        imported = JSON.parse(String(reader.result));
+      } catch (err) {
+        showDataMessage('That file is not valid JSON.', true);
+        return;
+      }
+
+      var next = normalizeSavedState(imported);
+      if (!next) {
+        showDataMessage('That file does not contain worlds or bosses.', true);
+        return;
+      }
+
+      if (!window.confirm('Import this file? It will replace the worlds and bosses currently on screen.')) {
+        showDataMessage('Import cancelled.', false);
+        return;
+      }
+
+      state = next;
+      saveState();
+      syncIntervalInputs();
+      rebuildAll();
+      showDataMessage('Data imported successfully.', false);
+    };
+    reader.onerror = function () {
+      showDataMessage('Could not read that file.', true);
+    };
+    reader.readAsText(file);
+  }
+
+  /* ---------- time math ---------- */
+
+  function intervalMsOf(iv) {
+    return (iv.hours * 60 + iv.minutes) * 60000;
+  }
+
+  // Occurrences are always anchor + n * interval. Mode "death" starts at
+  // n = 1 (the first respawn comes one interval after the death); mode
+  // "respawn" starts at n = 0 because the entered time is itself an
+  // occurrence. Only strictly upcoming times are shown, so the list keeps
+  // rolling forward by itself: #1 is always the real next respawn.
+  function upcoming(anchorMs, interval, nowMs, mode) {
+    var minIndex = mode === 'death' ? 1 : 0;
+    var firstIndex = Math.max(minIndex, Math.ceil((nowMs - anchorMs) / interval));
+    var times = [];
+    for (var j = 0; j < 4; j++) {
+      times.push(anchorMs + (firstIndex + j) * interval);
+    }
+    return times;
+  }
+
+  // Shugo starts on the hour, every hour. Returns the next hour boundary.
+  function nextShugoStart(nowMs) {
+    var d = new Date(nowMs);
+    d.setMinutes(0, 0, 0);
+    var start = d.getTime();
+    if (start <= nowMs) start += HOUR_MS;
+    return start;
+  }
+
+  // Parses a datetime-local value ("YYYY-MM-DDTHH:mm[:ss]") as LOCAL time,
+  // independently of the input element, so stored values reload correctly.
+  function parseLocalDateTime(value) {
+    if (!value || typeof value !== 'string') return null;
+    var m = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (!m) return null;
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] || 0));
+    return isNaN(d.getTime()) ? null : d.getTime();
+  }
+
+  function toLocalInputValue(ms) {
+    var d = new Date(ms);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+      'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  /* ---------- formatting ---------- */
+
+  function pad2(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+
+  function fmtTime(ms) {
+    var d = new Date(ms);
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  function fmtTimeWithSeconds(ms) {
+    var d = new Date(ms);
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+  }
+
+  function fmtDatePart(ms, nowMs) {
+    var d = new Date(ms);
+    var text = WEEKDAYS[d.getDay()] + ' ' + pad2(d.getDate()) + ' ' + MONTHS[d.getMonth()];
+    if (d.getFullYear() !== new Date(nowMs).getFullYear()) text += ' ' + d.getFullYear();
+    return text;
+  }
+
+  function fmtDateTime(ms, nowMs) {
+    return fmtDatePart(ms, nowMs) + ', ' + fmtTime(ms);
+  }
+
+  function fmtCountdown(ms) {
+    if (ms <= 0) return 'now';
+    var totalMin = Math.floor(ms / 60000);
+    if (totalMin < 1) return '< 1m';
+    var days = Math.floor(totalMin / 1440);
+    var hours = Math.floor((totalMin % 1440) / 60);
+    var minutes = totalMin % 60;
+    if (days > 0) return days + 'd ' + hours + 'h ' + minutes + 'm';
+    if (hours > 0) return hours + 'h ' + minutes + 'm';
+    return minutes + 'm';
+  }
+
+  function fmtInterval(ms) {
+    var totalMin = Math.round(ms / 60000);
+    return Math.floor(totalMin / 60) + 'h ' + pad2(totalMin % 60) + 'm';
+  }
+
+  function dateLabel(ms, nowMs) {
+    var target = new Date(ms);
+    var now = new Date(nowMs);
+    var a = Date.UTC(target.getFullYear(), target.getMonth(), target.getDate());
+    var b = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    var dayDiff = Math.round((a - b) / 86400000);
+    if (dayDiff === 0) return 'Today';
+    if (dayDiff === 1) return 'Tomorrow';
+    return fmtDatePart(ms, nowMs);
+  }
+
+  /* ---------- 15 min alarm ---------- */
+
+  function loadAlarmPref() {
+    try {
+      var raw = localStorage.getItem(ALARM_PREF_KEY);
+      if (!raw) return true;
+      var saved = JSON.parse(raw);
+      return !saved || saved.enabled !== false;
+    } catch (err) {
+      return true;
+    }
+  }
+
+  function saveAlarmPref() {
+    try {
+      localStorage.setItem(ALARM_PREF_KEY, JSON.stringify({ enabled: alarmEnabled }));
+    } catch (err) {
+      /* Storage unavailable: the alarm keeps working for this page. */
+    }
+  }
+
+  // Occurrence keys survive reloads (boss ids do not), so the same respawn
+  // never rings twice. Keys are stored as "kind|…|occurrenceMs".
+  function loadAlarmFired() {
+    try {
+      var raw = localStorage.getItem(ALARM_FIRED_KEY);
+      var list = raw ? JSON.parse(raw) : null;
+      var map = {};
+      if (Array.isArray(list)) {
+        list.forEach(function (key) {
+          if (typeof key === 'string') map[key] = true;
+        });
+      }
+      return map;
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function saveAlarmFired() {
+    var cutoff = Date.now() - ALARM_FIRED_KEEP_MS;
+    var list = [];
+    Object.keys(alarmFired).forEach(function (key) {
+      var at = Number(key.slice(key.lastIndexOf('|') + 1));
+      if (!isFinite(at) || at < cutoff) {
+        delete alarmFired[key];
+        return;
+      }
+      list.push(key);
+    });
+    try {
+      localStorage.setItem(ALARM_FIRED_KEY, JSON.stringify(list));
+    } catch (err) {
+      /* Storage unavailable: dedupe is kept in memory only. */
+    }
+  }
+
+  function audioContext() {
+    if (audioCtx) return audioCtx;
+    var Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return null;
+    try {
+      audioCtx = new Ctor();
+    } catch (err) {
+      audioCtx = null;
+    }
+    return audioCtx;
+  }
+
+  function soundSupported() {
+    return Boolean(window.AudioContext || window.webkitAudioContext);
+  }
+
+  // Three-note chime, played twice. Generated with Web Audio so the page
+  // stays a single self-contained file.
+  function chime(ctx) {
+    var base = ctx.currentTime;
+    var notes = [880, 1108.73, 1318.51];
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = 0; i < notes.length; i++) {
+        var at = base + pass * 1.1 + i * 0.26;
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(notes[i], at);
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.22, at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.42);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(at);
+        osc.stop(at + 0.45);
+      }
+    }
+  }
+
+  // Browsers only start audio after a user gesture, so any click or keypress
+  // unlocks the context; a pending alarm then rings on that first gesture.
+  function primeAudio() {
+    if (audioCtx && audioCtx.state === 'running' && !pendingSound) return;
+    var ctx = audioContext();
+    if (!ctx) return;
+    function afterUnlock() {
+      if (!pendingSound || ctx.state !== 'running') return;
+      pendingSound = false;
+      chime(ctx);
+    }
+    if (ctx.state === 'running') {
+      afterUnlock();
+      return;
+    }
+    var resumed = ctx.resume();
+    if (resumed && typeof resumed.then === 'function') {
+      resumed.then(afterUnlock).catch(function () {});
+    }
+  }
+
+  function playAlarm() {
+    var ctx = audioContext();
+    if (!ctx) return false;
+    if (ctx.state === 'running') {
+      pendingSound = false;
+      chime(ctx);
+      return true;
+    }
+    pendingSound = true;
+    var resumed = ctx.resume();
+    if (resumed && typeof resumed.then === 'function') {
+      resumed.then(function () {
+        if (!pendingSound || ctx.state !== 'running') return;
+        pendingSound = false;
+        chime(ctx);
+      }).catch(function () {});
+    }
+    return false;
+  }
+
+  function alarmKeyForBoss(world, boss, at) {
+    return 'boss|' + (world.name || '') + '|' + (boss.name || '') + '|' + at;
+  }
+
+  // One candidate per timer: the first occurrence of that timer that has not
+  // rung yet. Shugo rolls to the following hour once the next one rang.
+  function collectAlarmCandidates(nowMs) {
+    var candidates = [];
+
+    state.worlds.forEach(function (world) {
+      world.bosses.forEach(function (boss) {
+        var iv = intervalMsOf(boss.interval);
+        if (iv < MIN_INTERVAL_MS) return;
+        var refMs = parseLocalDateTime(boss.ref);
+        if (refMs === null) return;
+        var times = upcoming(refMs, iv, nowMs, boss.mode);
+        var label = (boss.name || 'Boss') + (world.name ? ' \u00B7 ' + world.name : '');
+        for (var j = 0; j < times.length; j++) {
+          var key = alarmKeyForBoss(world, boss, times[j]);
+          if (alarmFired[key]) continue;
+          candidates.push({ key: key, label: label, at: times[j] });
+          break;
+        }
+      });
+    });
+
+    var shugo = nextShugoStart(nowMs);
+    if (alarmFired['shugo|' + shugo]) shugo += HOUR_MS;
+    candidates.push({ key: 'shugo|' + shugo, label: 'Shugo Festival', at: shugo });
+
+    return candidates;
+  }
+
+  function checkAlarms() {
+    var nowMs = Date.now();
+    var due = [];
+
+    if (alarmEnabled) {
+      collectAlarmCandidates(nowMs).forEach(function (cand) {
+        var msLeft = cand.at - nowMs;
+        if (msLeft <= 0 || msLeft > ALARM_LEAD_MS) return;
+        if (alarmFired[cand.key]) return;
+        alarmFired[cand.key] = true;
+        due.push(cand);
+      });
+    }
+
+    if (due.length) {
+      saveAlarmFired();
+      fireAlarm(due);
+    }
+
+    scheduleAlarmCheck(nowMs);
+  }
+
+  // Wakes up exactly when the next 15-minute boundary is crossed, with a
+  // 10 minute cap that also covers clock changes and background throttling.
+  function scheduleAlarmCheck(nowMs) {
+    if (alarmTimer) {
+      clearTimeout(alarmTimer);
+      alarmTimer = null;
+    }
+    if (!alarmEnabled) return;
+
+    var nextBoundary = null;
+    collectAlarmCandidates(nowMs).forEach(function (cand) {
+      var boundary = cand.at - ALARM_LEAD_MS;
+      if (boundary <= nowMs) return;
+      if (nextBoundary === null || boundary < nextBoundary) nextBoundary = boundary;
+    });
+    if (nextBoundary === null) return;
+
+    var delay = Math.min(nextBoundary - nowMs + 250, 10 * 60 * 1000);
+    alarmTimer = setTimeout(checkAlarms, Math.max(delay, 1000));
+  }
+
+  function fireAlarm(due) {
+    var items = due.map(function (cand) {
+      return cand.label + ' at ' + fmtTime(cand.at);
+    });
+    var audible = playAlarm();
+    var message = '15 min to ' + items.join(', ');
+    if (!audible && soundSupported()) message += ' \u2014 click anywhere to enable sound.';
+    showAlarmBanner(message);
+  }
+
+  function showAlarmBanner(message) {
+    var banner = document.getElementById('alarm-banner');
+    var text = document.getElementById('alarm-text');
+    if (!banner || !text) return;
+    text.textContent = message;
+    banner.hidden = false;
+    banner.classList.add('is-live');
+  }
+
+  function hideAlarmBanner() {
+    var banner = document.getElementById('alarm-banner');
+    if (!banner) return;
+    banner.hidden = true;
+    banner.classList.remove('is-live');
+  }
+
+  function applyAlarmToggle() {
+    var btn = document.getElementById('alarm-toggle');
+    if (!btn) return;
+    btn.textContent = alarmEnabled ? 'On' : 'Off';
+    btn.setAttribute('aria-pressed', String(alarmEnabled));
+    btn.classList.toggle('is-off', !alarmEnabled);
+  }
+
+  function toggleAlarm() {
+    alarmEnabled = !alarmEnabled;
+    saveAlarmPref();
+    applyAlarmToggle();
+    if (!alarmEnabled) {
+      hideAlarmBanner();
+      if (alarmTimer) {
+        clearTimeout(alarmTimer);
+        alarmTimer = null;
+      }
+      return;
+    }
+    checkAlarms();
+  }
+
+  /* ---------- structure operations ---------- */
+
+  function addBoss(world) {
+    var boss = makeBoss('Boss ' + (world.bosses.length + 1), state.interval);
+    world.bosses.push(boss);
+    saveState();
+    rebuildAll();
+    var refs = cardRefs[boss.id];
+    if (refs) {
+      refs.nameInput.focus();
+      refs.nameInput.select();
+    }
+  }
+
+  function removeBoss(world, boss) {
+    if (!window.confirm('Remove "' + (boss.name || 'this boss') + '"?')) return;
+    var index = world.bosses.indexOf(boss);
+    if (index >= 0) world.bosses.splice(index, 1);
+    saveState();
+    rebuildAll();
+  }
+
+  function addWorld() {
+    var world = makeWorld('New world');
+    state.worlds.push(world);
+    saveState();
+    rebuildAll();
+    var refs = worldRefs[world.id];
+    if (refs) {
+      refs.nameInput.focus();
+      refs.nameInput.select();
+    }
+  }
+
+  function removeWorld(world) {
+    if (!window.confirm('Remove world "' + (world.name || 'World') + '" and all its bosses?')) return;
+    var index = state.worlds.indexOf(world);
+    if (index >= 0) state.worlds.splice(index, 1);
+    saveState();
+    rebuildAll();
+  }
+
+  /* ---------- card construction ---------- */
+
+  function rebuildAll() {
+    cardRefs = {};
+    worldRefs = {};
+    var container = document.getElementById('worlds');
+    var frag = document.createDocumentFragment();
+    state.worlds.forEach(function (world) {
+      frag.appendChild(buildWorld(world));
+    });
+    container.replaceChildren(frag);
+    render();
+  }
+
+  function buildWorld(world) {
+    var section = el('section', 'world');
+    section.setAttribute('aria-label', world.name + ' world');
+
+    var nameInput = el('input', 'world-name');
+    nameInput.type = 'text';
+    nameInput.maxLength = 40;
+    nameInput.placeholder = 'World name';
+    nameInput.value = world.name;
+    nameInput.setAttribute('aria-label', 'World name');
+    nameInput.addEventListener('input', function () {
+      world.name = nameInput.value;
+      section.setAttribute('aria-label', (world.name || 'World') + ' world');
+      saveState();
+    });
+
+    var addBossBtn = el('button', 'ghost-btn', '+ Add boss');
+    addBossBtn.type = 'button';
+    addBossBtn.setAttribute('aria-label', 'Add boss to ' + (world.name || 'world'));
+    addBossBtn.addEventListener('click', function () { addBoss(world); });
+
+    var removeWorldBtn = el('button', 'icon-btn', '\u00D7');
+    removeWorldBtn.type = 'button';
+    removeWorldBtn.title = 'Remove world';
+    removeWorldBtn.setAttribute('aria-label', 'Remove world ' + (world.name || ''));
+    removeWorldBtn.addEventListener('click', function () { removeWorld(world); });
+
+    var head = el('header', 'world-head');
+    head.appendChild(nameInput);
+    head.appendChild(addBossBtn);
+    head.appendChild(removeWorldBtn);
+
+    var grid = el('div', 'boss-grid');
+    if (world.bosses.length === 0) {
+      grid.appendChild(el('p', 'world-empty', 'No bosses yet. Use "+ Add boss" to create one for this world.'));
+    } else {
+      world.bosses.forEach(function (boss, index) {
+        grid.appendChild(buildCard(world, boss, index));
+      });
+    }
+
+    section.appendChild(head);
+    section.appendChild(grid);
+    worldRefs[world.id] = { nameInput: nameInput, section: section, grid: grid };
+    return section;
+  }
+
+  function buildCard(world, boss, accentIndex) {
+    var card = el('article', 'boss-card');
+    card.style.setProperty('--accent', ACCENTS[accentIndex % ACCENTS.length]);
+    card.setAttribute('role', 'group');
+    card.setAttribute('aria-label', (boss.name || 'Boss') + ' respawn card');
+
+    var nameInput = el('input', 'boss-name');
+    nameInput.type = 'text';
+    nameInput.maxLength = 40;
+    nameInput.placeholder = 'Boss name';
+    nameInput.value = boss.name;
+    nameInput.setAttribute('aria-label', 'Boss name');
+    nameInput.addEventListener('input', function () {
+      boss.name = nameInput.value;
+      card.setAttribute('aria-label', (boss.name || 'Boss') + ' respawn card');
+      saveState();
+    });
+
+    var removeBossBtn = el('button', 'icon-btn', '\u00D7');
+    removeBossBtn.type = 'button';
+    removeBossBtn.title = 'Remove boss';
+    removeBossBtn.setAttribute('aria-label', 'Remove this boss');
+    removeBossBtn.addEventListener('click', function () { removeBoss(world, boss); });
+
+    var titleRow = el('div', 'boss-title-row');
+    titleRow.appendChild(nameInput);
+    titleRow.appendChild(removeBossBtn);
+
+    var locInput = el('input');
+    locInput.type = 'text';
+    locInput.maxLength = 60;
+    locInput.value = boss.location;
+    locInput.setAttribute('aria-label', 'Boss location');
+    locInput.addEventListener('input', function () {
+      boss.location = locInput.value;
+      saveState();
+    });
+
+    var slotInput = el('input');
+    slotInput.type = 'text';
+    slotInput.maxLength = 20;
+    slotInput.value = boss.slot;
+    slotInput.setAttribute('aria-label', 'Boss slot');
+    slotInput.addEventListener('input', function () {
+      boss.slot = slotInput.value;
+      saveState();
+    });
+
+    var locField = el('label', 'meta-field');
+    locField.appendChild(el('span', 'meta-label', 'Location'));
+    locField.appendChild(locInput);
+    var slotField = el('label', 'meta-field slot');
+    slotField.appendChild(el('span', 'meta-label', 'Slot'));
+    slotField.appendChild(slotInput);
+    var meta = el('div', 'boss-meta');
+    meta.appendChild(locField);
+    meta.appendChild(slotField);
+
+    var head = el('header', 'boss-head');
+    head.appendChild(titleRow);
+    head.appendChild(meta);
+
+    var scheduleHead = el('div', 'schedule-head');
+    scheduleHead.appendChild(el('span', 'schedule-title', 'Upcoming respawns'));
+    var intervalChip = el('span', 'interval-chip');
+    scheduleHead.appendChild(intervalChip);
+
+    var schedule = el('ol', 'schedule');
+    schedule.setAttribute('aria-label', 'Upcoming respawns');
+
+    var details = document.createElement('details');
+    details.className = 'details';
+    details.appendChild(el('summary', null, 'Details'));
+    var detailsBody = el('div', 'details-body');
+
+    var ivH = el('input', 'num-input');
+    ivH.type = 'number';
+    ivH.min = '0';
+    ivH.step = '1';
+    ivH.inputMode = 'numeric';
+    ivH.value = boss.interval.hours;
+    ivH.setAttribute('aria-label', 'Respawn interval hours');
+    var ivM = el('input', 'num-input');
+    ivM.type = 'number';
+    ivM.min = '0';
+    ivM.step = '1';
+    ivM.inputMode = 'numeric';
+    ivM.value = boss.interval.minutes;
+    ivM.setAttribute('aria-label', 'Respawn interval minutes');
+
+    function onBossIntervalChange() {
+      boss.interval.hours = clampInt(ivH.value, boss.interval.hours, 0, 999);
+      boss.interval.minutes = clampInt(ivM.value, boss.interval.minutes, 0, 999);
+      saveState();
+      render();
+    }
+    ivH.addEventListener('input', onBossIntervalChange);
+    ivM.addEventListener('input', onBossIntervalChange);
+
+    var ivWrap = el('div', 'interval-inputs');
+    ivWrap.appendChild(ivH);
+    ivWrap.appendChild(el('span', 'interval-unit', 'h'));
+    ivWrap.appendChild(ivM);
+    ivWrap.appendChild(el('span', 'interval-unit', 'min'));
+    var ivRow = el('div', 'interval-row');
+    ivRow.appendChild(el('span', 'meta-label', 'Respawn interval'));
+    ivRow.appendChild(ivWrap);
+
+    var btnDeath = el('button', 'mode-btn', 'Last death');
+    btnDeath.type = 'button';
+    var btnRespawn = el('button', 'mode-btn', 'Next respawn');
+    btnRespawn.type = 'button';
+    var toggle = el('div', 'mode-toggle');
+    toggle.setAttribute('role', 'radiogroup');
+    toggle.setAttribute('aria-label', 'Reference type');
+    toggle.appendChild(btnDeath);
+    toggle.appendChild(btnRespawn);
+
+    var refLabel = el('label', 'ref-label');
+    var refInput = el('input', 'ref-input');
+    refInput.type = 'datetime-local';
+    refInput.id = 'ref-' + boss.id;
+    refInput.value = boss.ref;
+    refLabel.htmlFor = refInput.id;
+
+    var nowBtn = el('button', 'now-btn', 'Now');
+    nowBtn.type = 'button';
+    nowBtn.setAttribute('aria-label', 'Use current time as reference');
+
+    var controls = el('div', 'ref-controls');
+    controls.appendChild(refInput);
+    controls.appendChild(nowBtn);
+
+    var field = el('div', 'ref-field');
+    field.appendChild(refLabel);
+    field.appendChild(controls);
+
+    var refSection = el('div', 'ref-section');
+    refSection.appendChild(toggle);
+    refSection.appendChild(field);
+
+    var derived = el('div', 'derived');
+
+    detailsBody.appendChild(ivRow);
+    detailsBody.appendChild(refSection);
+    detailsBody.appendChild(derived);
+    details.appendChild(detailsBody);
+
+    // Collapsed by default once a reference exists; forced open while the
+    // boss still needs configuring (no reference yet).
+    var initialOpen = !boss.ref ? true : boss.detailsOpen === true;
+    var lastSyncedOpen = initialOpen;
+    details.open = initialOpen;
+    details.addEventListener('toggle', function () {
+      if (details.open === lastSyncedOpen) return; // programmatic sync, not the user
+      lastSyncedOpen = details.open;
+      boss.detailsOpen = details.open;
+      saveState();
+    });
+
+    function applyMode() {
+      btnDeath.setAttribute('aria-pressed', String(boss.mode === 'death'));
+      btnRespawn.setAttribute('aria-pressed', String(boss.mode === 'respawn'));
+      refLabel.textContent = boss.mode === 'respawn' ? 'Next respawn time' : 'Last death time';
+    }
+
+    function setMode(mode) {
+      boss.mode = mode;
+      applyMode();
+      saveState();
+      render();
+    }
+
+    btnDeath.addEventListener('click', function () { setMode('death'); });
+    btnRespawn.addEventListener('click', function () { setMode('respawn'); });
+    applyMode();
+
+    function onRefChange() {
+      boss.ref = refInput.value;
+      saveState();
+      render();
+    }
+    refInput.addEventListener('input', onRefChange);
+    refInput.addEventListener('change', onRefChange);
+
+    nowBtn.addEventListener('click', function () {
+      var value = toLocalInputValue(Date.now());
+      refInput.value = value;
+      boss.ref = value;
+      saveState();
+      render();
+    });
+
+    card.appendChild(head);
+    card.appendChild(scheduleHead);
+    card.appendChild(schedule);
+    card.appendChild(details);
+
+    cardRefs[boss.id] = {
+      card: card,
+      derived: derived,
+      schedule: schedule,
+      intervalChip: intervalChip,
+      nameInput: nameInput
+    };
+
+    return card;
+  }
+
+  /* ---------- rendering ---------- */
+
+  function render() {
+    var nowMs = Date.now();
+    var defaultIv = intervalMsOf(state.interval);
+    var defaultValid = defaultIv >= MIN_INTERVAL_MS;
+
+    document.getElementById('clock-value').textContent = fmtTime(nowMs);
+    document.getElementById('last-update').textContent = fmtTimeWithSeconds(nowMs);
+
+    var effEl = document.getElementById('interval-effective');
+    var warnEl = document.getElementById('interval-warning');
+    if (defaultValid) {
+      effEl.textContent = 'New bosses: every ' + fmtInterval(defaultIv);
+      effEl.hidden = false;
+      warnEl.hidden = true;
+    } else {
+      effEl.hidden = true;
+      warnEl.hidden = false;
+    }
+
+    state.worlds.forEach(function (world) {
+      world.bosses.forEach(function (boss) {
+        renderBoss(boss, nowMs);
+      });
+      orderBossCards(world);
+    });
+    renderShugo(nowMs);
+    checkAlarms();
+  }
+
+  function renderBoss(boss, nowMs) {
+    var refs = cardRefs[boss.id];
+    if (!refs) return;
+
+    refs.nextSpawnMs = null;
+    var iv = intervalMsOf(boss.interval);
+    var ivValid = iv >= MIN_INTERVAL_MS;
+
+    refs.card.classList.remove('state-soon', 'state-imminent');
+    refs.intervalChip.classList.toggle('chip-invalid', !ivValid);
+    refs.intervalChip.textContent = ivValid ? 'every ' + fmtInterval(iv) : 'set interval';
+
+    if (!ivValid) {
+      refs.derived.replaceChildren(el('p', 'hint', 'Set a respawn interval of at least 1 minute.'));
+      refs.schedule.replaceChildren(el('li', 'slot-empty', 'Set a respawn interval of at least 1 minute.'));
+      return;
+    }
+
+    var refMs = parseLocalDateTime(boss.ref);
+    if (refMs === null) {
+      refs.derived.replaceChildren(el('p', 'hint', 'Enter a reference time to see the upcoming respawns.'));
+      refs.schedule.replaceChildren(el('li', 'slot-empty', 'No reference set. Open Details to configure.'));
+      return;
+    }
+
+    var times = upcoming(refMs, iv, nowMs, boss.mode);
+    refs.nextSpawnMs = times[0];
+    var lines = boss.mode === 'respawn'
+      ? [
+          { k: 'Reference', v: 'Next respawn \u00B7 ' + fmtDateTime(refMs, nowMs) },
+          { k: 'Inferred', v: 'Last death \u00B7 ' + fmtDateTime(refMs - iv, nowMs) }
+        ]
+      : [
+          { k: 'Reference', v: 'Last death \u00B7 ' + fmtDateTime(refMs, nowMs) },
+          { k: 'Inferred', v: 'Next respawn \u00B7 ' + fmtDateTime(refMs + iv, nowMs) }
+        ];
+
+    var derivedFrag = document.createDocumentFragment();
+    for (var l = 0; l < lines.length; l++) {
+      var line = el('div', 'derived-line');
+      line.appendChild(el('span', 'k', lines[l].k));
+      line.appendChild(el('span', 'v', lines[l].v));
+      derivedFrag.appendChild(line);
+    }
+    refs.derived.replaceChildren(derivedFrag);
+
+    var msToFirst = times[0] - nowMs;
+    var stateClass = msToFirst <= IMMINENT_MS ? 'state-imminent'
+      : msToFirst <= SOON_MS ? 'state-soon'
+      : 'state-normal';
+    if (stateClass !== 'state-normal') refs.card.classList.add(stateClass);
+
+    var scheduleFrag = document.createDocumentFragment();
+    for (var j = 0; j < times.length; j++) {
+      var row = el('li', 'slot-row' + (j === 0 ? ' is-next ' + stateClass : ''));
+      row.appendChild(el('span', 'slot-num', '#' + (j + 1)));
+      row.appendChild(el('span', 'slot-when', fmtDateTime(times[j], nowMs)));
+      if (j === 0) row.appendChild(el('span', 'slot-in', 'in ' + fmtCountdown(times[j] - nowMs)));
+      scheduleFrag.appendChild(row);
+    }
+    refs.schedule.replaceChildren(scheduleFrag);
+  }
+
+  // The grid lays cards out left to right, so the boss closest to its next
+  // spawn goes first. Bosses without a usable reference cannot be ranked yet
+  // and keep their creation order after the ranked ones. CSS "order" reorders
+  // the grid visually without moving nodes, so inputs keep focus while cards
+  // change position and tab order stays predictable.
+  function orderBossCards(world) {
+    var worldRef = worldRefs[world.id];
+    if (!worldRef || !worldRef.grid) return;
+
+    var ranked = world.bosses.map(function (boss, index) {
+      var refs = cardRefs[boss.id];
+      var next = refs && typeof refs.nextSpawnMs === 'number' ? refs.nextSpawnMs : Infinity;
+      return { boss: boss, index: index, next: next };
+    });
+    ranked.sort(function (a, b) {
+      if (a.next === b.next) return a.index - b.index;
+      return a.next - b.next;
+    });
+
+    for (var i = 0; i < ranked.length; i++) {
+      var refs = cardRefs[ranked[i].boss.id];
+      if (!refs) return;
+      var pos = String(i);
+      if (refs.card.style.order !== pos) refs.card.style.order = pos;
+    }
+  }
+
+  function renderShugo(nowMs) {
+    var next = nextShugoStart(nowMs);
+    var chip = document.getElementById('shugo-countdown');
+    var ms = next - nowMs;
+    document.getElementById('shugo-time').textContent = fmtTime(next);
+    document.getElementById('shugo-date').textContent = dateLabel(next, nowMs);
+    chip.textContent = 'in ' + fmtCountdown(ms);
+    chip.classList.toggle('state-soon', ms > IMMINENT_MS && ms <= SOON_MS);
+    chip.classList.toggle('state-imminent', ms <= IMMINENT_MS);
+  }
+
+  /* ---------- boot ---------- */
+
+  function boot() {
+    var intervalH = document.getElementById('interval-h');
+    var intervalM = document.getElementById('interval-m');
+    syncIntervalInputs();
+
+    function onDefaultIntervalChange() {
+      state.interval.hours = clampInt(intervalH.value, state.interval.hours, 0, 999);
+      state.interval.minutes = clampInt(intervalM.value, state.interval.minutes, 0, 999);
+      saveState();
+      render();
+    }
+    intervalH.addEventListener('input', onDefaultIntervalChange);
+    intervalM.addEventListener('input', onDefaultIntervalChange);
+
+    var importFile = document.getElementById('import-file');
+    document.getElementById('import-btn').addEventListener('click', function () {
+      importFile.click();
+    });
+    importFile.addEventListener('change', function () {
+      var file = importFile.files && importFile.files[0];
+      if (!file) return;
+      importFile.value = '';
+      importDataFile(file);
+    });
+    document.getElementById('export-btn').addEventListener('click', exportData);
+
+    document.getElementById('add-world-btn').addEventListener('click', addWorld);
+
+    document.getElementById('alarm-toggle').addEventListener('click', toggleAlarm);
+    document.getElementById('alarm-test').addEventListener('click', function () {
+      primeAudio();
+      playAlarm();
+    });
+    document.getElementById('alarm-dismiss').addEventListener('click', hideAlarmBanner);
+    document.addEventListener('pointerdown', primeAudio, true);
+    document.addEventListener('keydown', primeAudio, true);
+    applyAlarmToggle();
+
+    rebuildAll();
+
+    setInterval(render, REFRESH_MS);
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) render();
+    });
+    window.addEventListener('focus', render);
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
